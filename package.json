@@ -1,0 +1,13 @@
+{
+  "type": "module",
+  "scripts": {
+    "solution": "tsc && vite-node runner.ts"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.12",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.2",
+    "vite-node": "^2.1.8"
+  }
+}
