@@ -1,53 +1,52 @@
-// I tried to do this without brute forcing; I failed
+const checkRemainingNumbers = (result: number, numbers: number[]): boolean => {
+  numbers = numbers.concat();
 
-type Operator = '+' | '*' | '||';
-const possibleOperators: Operator[] = ['+', '*', '||'];
+  // the next number either multiplies or adds to all the others
+  const nextNumber = numbers.shift();
 
-type Operation = {
-  op: Operator,
-  value: number
-};
-
-const checkEquationIsCorrect = (result: number, operations: Operation[]): boolean => {
-  const resultToCheck = operations.reduce((acc, operation) => {
-    switch(operation.op) {
-      case '+':
-        acc += operation.value;
-        break;
-      case '*':
-        acc *= operation.value;
-        break;
-      case '||':
-        acc = parseInt(acc.toString() + operation.value.toString());
-    }
-
-    return acc;
-  }, 0);
-
-  return result === resultToCheck;
-};
-
-const getNextIteration = (operations: Operation[]): Operation[] | null => {
-  const nextOperations = JSON.parse(JSON.stringify(operations)) as Operation[];
-  const lastOp = possibleOperators[possibleOperators.length - 1];
-
-  // first op should always be implicit +
-
-  if (nextOperations.slice(1).every(operation => operation.op === lastOp)) {
-    return null;
+  // ran out of numbers, not sure when this would happen?
+  if (!nextNumber) {
+    return false;
   }
 
-  for (let i = operations.length - 1; i >= 0; i--) {
-    if (operations[i].op === lastOp) {
-      nextOperations[i].op = possibleOperators[0];
-    } else {
-      const currentIndex = possibleOperators.indexOf(operations[i].op);
-      nextOperations[i].op = possibleOperators[currentIndex + 1];
-      break;
+  // got to the end of the chain, this last number was added
+  if (result === nextNumber) {
+    return true;
+  }
+
+  const re = new RegExp(nextNumber + '$');
+  if (result.toString().match(re)) {
+    const tempResult = parseInt(result.toString().replace(re, ''));
+
+    if (checkRemainingNumbers(tempResult, numbers)) {
+      return true;
     }
   }
 
-  return nextOperations
+  // possibly a multiplier
+  // try dividing the result and see whether the rest is valid
+  if (result % nextNumber === 0) {
+    console.log(`trying ${result}: ${numbers.join(' ')} * ${nextNumber}`);
+    const tempResult = result / nextNumber;
+
+    if (checkRemainingNumbers(tempResult, numbers)) {
+      // the rest checks out
+      return true;
+    }
+  }
+
+  console.log(`trying ${result}: ${numbers.join(' ')} + ${nextNumber}`);
+
+  // if we got here, try assuming the next number was added
+  result -= nextNumber;
+
+  if (result === 0) {
+    return true;
+  } else if (result < 0) {
+    return false;
+  } else {
+    return checkRemainingNumbers(result, numbers);
+  }
 };
 
 const run = (input: string) => {
@@ -61,25 +60,11 @@ const run = (input: string) => {
       .split(' ')
       .map(value => parseInt(value));
 
-    let operationsAttempt: Operation[] | null = equationNumbers.map(num => ({
-      op: possibleOperators[0],
-      value: num
-    }));
+    // the numbers given are applied left to right,
+    // so flip them to start with the most recent operation
+    const numbersReversed = equationNumbers.concat().reverse();
 
-    let isValid = false;
-
-    while (operationsAttempt) {
-      if (!operationsAttempt) {
-        break;
-      }
-
-      if (checkEquationIsCorrect(equationResult, operationsAttempt)) {
-        isValid = true;
-        break;
-      }
-
-      operationsAttempt = getNextIteration(operationsAttempt);
-    }
+    const isValid = checkRemainingNumbers(equationResult, numbersReversed);
 
     if (isValid) {
       console.log(`VALID: ${line}`);
