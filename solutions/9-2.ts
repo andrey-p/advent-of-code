@@ -1,38 +1,73 @@
-const isEmptyBlock = (block: string): boolean => {
-  return /^\.+$/.test(block);
+type Block = {
+  fileId: string, // e.g. '12' | '.'
+  size: number
 };
 
-const reorderBlocks = (blocks: string[]): string[] => {
+const isEmptyBlock = (block: Block | undefined): boolean => {
+  if (!block) { return false; }
+
+  return block.fileId === '.';
+};
+
+// overwrite the old place of the file block with empty space,
+// merging with empty space before or after if needs be
+// (not strictly necessary but made debugging easier)
+const emptyBlock = (blocks: Block[], index: number, size: number) => {
+  let startIndex = index;
+  let blocksToRemove = 1;
+  const newEmptyBlock = {
+    fileId: '.',
+    size
+  };
+
+  const blockBefore = blocks[index - 1];
+  const blockAfter = blocks[index + 1];
+  if (isEmptyBlock(blockBefore)) {
+    newEmptyBlock.size += blocks[index - 1].size;
+    startIndex = index - 1;
+    blocksToRemove++;
+  }
+
+  if (isEmptyBlock(blockAfter)) {
+    newEmptyBlock.size += blocks[index + 1].size;
+    blocksToRemove++;
+  }
+
+  blocks.splice(startIndex, blocksToRemove, newEmptyBlock);
+};
+
+const reorderBlocks = (blocks: Block[]): Block[] => {
   const nonEmptyBlocks = blocks
     .filter(block => !isEmptyBlock(block))
     .reverse();
 
-  nonEmptyBlocks.forEach(block => {
+  nonEmptyBlocks.forEach((block) => {
     for (let i = 0; i < blocks.length; i++) {
-      if (isEmptyBlock(blocks[i]) && blocks[i].length >= block.length) {
-        // console.log(`putting block ${block} in index [${i}]`);
-
+      if (isEmptyBlock(blocks[i]) && blocks[i].size >= block.size) {
         const oldIndex = blocks.indexOf(block);
-        if (oldIndex <= i) {
-          continue;
+        if (oldIndex < i) {
+          break;
         }
 
-        // overwrite where the numbered block was with ..s
-        blocks[oldIndex] = '.'.repeat(block.length);
+        emptyBlock(blocks, oldIndex, block.size);
 
-        const diff = blocks[i].length - block.length;
+        const diff = blocks[i].size - block.size;
         blocks[i] = block;
 
-        // add an empty block with the leftover space
         if (diff > 0) {
-          blocks.splice(i + 1, 0, '.'.repeat(diff));
+          // merge leftover space if there's any to the right
+          if (blocks[i + 1].fileId === '.') {
+            blocks[i + 1].size += diff;
+          } else {
+            // otherwise add an empty block with the leftover space
+            blocks.splice(i + 1, 0, { fileId: '.', size: diff });
+          }
         }
 
         break;
       }
-    }
 
-    console.log(blocks.join(''));
+    }
   });
 
   return blocks;
@@ -44,7 +79,7 @@ const run = (input: string) => {
     .split('')
     .map(num => parseInt(num));
 
-  let blocks: string[] = numbers.reduce((blocks, num, i) => {
+  let blocks: Block[] = numbers.reduce((blocks, num, i) => {
     const char = i % 2 === 0
       // file
       ? Math.floor(i / 2).toString()
@@ -52,28 +87,31 @@ const run = (input: string) => {
       : '.';
 
     if (num) {
-      blocks.push(char.repeat(num));
+      blocks.push({
+        fileId: char,
+        size: num
+      });
     }
 
     return blocks;
-  }, [] as string[]);
+  }, [] as Block[]);
 
-  console.log(blocks);
+  blocks = reorderBlocks(blocks);
 
-  blocks = reorderBlocks(blocks)
-    // turn from multi-character array of strings
-    // to single-character array of strings
-    // ['00', '.'] => ['0', '0', '.']
-    .join('')
-    .split('');
+  const result = blocks.reduce(({ checksum, position }, block) => {
+    if (block.fileId === '.') {
+      position += block.size;
+    } else {
+      for (let i = 0; i < block.size; i++) {
+        checksum += parseInt(block.fileId) * position;
+        position++;
+      }
+    }
 
-  return blocks.reduce((checksum, block, i) => {
-    return block === '.'
-      ? checksum
-      : checksum + (parseInt(block) * i);
-  }, 0);
+    return { checksum, position };
+  }, { checksum: 0, position: 0 });
 
-  return blocks;
+  return result.checksum;
 };
 
 export default run;
