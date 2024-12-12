@@ -1,6 +1,6 @@
 type Point = { x: number, y: number };
 type Border = {
-  orientation: 'vertical' | 'horizontal'
+  direction: Point
 } & Point;
 
 type TileMap = Map<string, boolean>;
@@ -52,10 +52,8 @@ const traverseContiguousTiles = (tileset: ContiguousTileset, grid: string[][], p
       tileset.perimeter = nextTileset.perimeter.concat();
     } else {
       tileset.perimeter.push({
-        ...candidatePoint,
-        orientation: direction.y === 0 ?
-          'vertical' :
-          'horizontal'
+        ...point,
+        direction
       });
     }
   });
@@ -63,64 +61,62 @@ const traverseContiguousTiles = (tileset: ContiguousTileset, grid: string[][], p
   return tileset;
 }
 
+// this is some of the clunkiest code I've written
+// but it works
 const countPerimeterSides = (perimeter: Border[]): number => {
   perimeter = structuredClone(perimeter);
   let sides = 0;
 
   // go through all the borders
   while (perimeter.length) {
+    // pick the first border left
     const border = perimeter[0];
     const alignedBorders: Border[] = [];
     const bordersLeft: Border[] = [];
 
-    // huh
+    // weird type thing needed but OK
     type PointKey = keyof typeof border;
     let compareBy: PointKey;
     let sortBy: PointKey;
 
-    sides++;
-
-    if (border.orientation === 'horizontal') {
+    // border we're looking at is horizontal
+    if (border.direction.x === 0) {
       compareBy = 'y';
       sortBy = 'x';
     } else {
+      // vertical
       compareBy = 'x';
       sortBy = 'y';
     }
 
     // get all the borders that line up with the current one
-    // (e.g. all horizontal borders along y=5);
+    // (e.g. all horizontal borders along y=5 pointing downwards);
     perimeter.forEach(borderB => {
       if (border[compareBy] === borderB[compareBy] &&
-          border.orientation === borderB.orientation) {
+          border.direction.x === borderB.direction.x &&
+          border.direction.y === borderB.direction.y) {
         alignedBorders.push(borderB);
       } else {
         bordersLeft.push(borderB);
       }
     });
 
-    // sort them so we get contiguous borders
+    // sort them so we can keep track of which ones are contiguous
     alignedBorders.sort((a, b) => b[sortBy] - a[sortBy]);
 
-    // go through the aligned borders...
-    let countedOppositeSides = false;
+    // this'll have at least one side
+    // just for being here
+    let sidesForThisSet = 1;
+
     for (let i = 0; i < alignedBorders.length - 1; i++) {
-      // aligned borders but separated by at least one tile
+      // if the border is broken up by at least one tile
       // count that as a separate side
       if (alignedBorders[i][sortBy] - alignedBorders[i + 1][sortBy] > 1) {
-        sides++;
-        // new side - the border might be doubled again
-        countedOppositeSides = false;
-      }
-
-      // if there's multiple instances of this border, that means
-      // it's used by 2 lines of the tileset, so it needs to be double counted
-      if (alignedBorders[i][sortBy] === alignedBorders[i + 1][sortBy] && !countedOppositeSides) {
-        sides++;
-        countedOppositeSides = true;
+        sidesForThisSet++;
       }
     }
 
+    sides += sidesForThisSet;
     perimeter = bordersLeft;
   }
 
@@ -134,6 +130,7 @@ const run = (input: string) => {
   let allTilesVisited: TileMap = new Map<string, boolean>();
 
   let totalFenceCost = 0;
+  let totalArea = 0;
 
   for (let i = 0; i < grid.length; i++) {
     for (let j = 0; j < grid[i].length; j++) {
@@ -160,6 +157,7 @@ const run = (input: string) => {
       console.log(`tileset area: ${tileset.area}`);
       console.log(`tileset perimeter: ${perimeterSides}`);
       console.log('===========');
+      totalArea += tileset.area;
 
       // add contiguous tiles from this area to ones we've checked
       allTilesVisited = new Map([...allTilesVisited, ...tileset.map]);
